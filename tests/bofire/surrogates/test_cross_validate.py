@@ -656,6 +656,86 @@ def test_make_cv_split():
     assert len(list(cv_func)) == 2
 
 
+def test_model_cross_validate_auto_timeseries_detection():
+    """Test that cross_validate automatically detects and uses time series column"""
+    inputs = Inputs(
+        features=[
+            ContinuousInput(
+                key="x_1",
+                bounds=(-4, 4),
+            ),
+            ContinuousInput(
+                key="x_2", 
+                bounds=(-4, 4),
+            ),
+            CategoricalInput(
+                key="batch_id",
+                categories=["A", "B", "C", "D", "E"],
+                is_timeseries=True,  # Mark this as the time series identifier
+            ),
+        ],
+    )
+    outputs = Outputs(features=[ContinuousOutput(key="y")])
+    
+    # Create experiments with batch structure
+    experiments = pd.DataFrame({
+        "x_1": [1, 1.1, 1.2, 2, 2.1, 2.2, 3, 3.1, 3.2, 4, 4.1, 4.2],
+        "x_2": [2, 2.1, 2.2, 3, 3.1, 3.2, 4, 4.1, 4.2, 1, 1.1, 1.2],
+        "batch_id": ["A", "A", "A", "B", "B", "B", "C", "C", "C", "D", "D", "D"],
+        "y": [1.5, 1.6, 1.7, 2.5, 2.6, 2.7, 3.5, 3.6, 3.7, 4.5, 4.6, 4.7],
+        "valid_y": [1] * 12,
+    })
+    
+    model = SingleTaskGPSurrogate(
+        inputs=inputs,
+        outputs=outputs,
+    )
+    model = surrogates.map(model)
+    
+    # Call cross_validate without explicitly providing group_split_column
+    # It should automatically detect batch_id as the time series column
+    train_cv, test_cv, _ = model.cross_validate(experiments, folds=3)
+    
+    # Gather train and test indices
+    test_indices = []
+    train_indices = []
+    for cvresults in test_cv.results:
+        test_indices.append(list(cvresults.observed.index))
+    
+    for cvresults in train_cv.results:
+        train_indices.append(list(cvresults.observed.index))
+    
+    # Group indices by batch
+    batch_indices = {
+        "A": [0, 1, 2],
+        "B": [3, 4, 5], 
+        "C": [6, 7, 8],
+        "D": [9, 10, 11],
+    }
+    
+    # Test that batches are kept together in either train or test
+    for test_index, train_index in zip(test_indices, train_indices):
+        for batch, indices in batch_indices.items():
+            test_set = set(test_index)
+            train_set = set(train_index)
+            # Each batch should be entirely in either test or train, not split
+            assert test_set.issuperset(indices) or train_set.issuperset(indices), \
+                f"Batch {batch} was split between train and test sets"
+    
+    # Also test that explicitly providing group_split_column overrides auto-detection
+    # Create a different grouping column
+    experiments["manual_group"] = ["X", "X", "Y", "Y", "Y", "Z", "Z", "Z", "W", "W", "W", "W"]
+    train_cv2, test_cv2, _ = model.cross_validate(
+        experiments, 
+        folds=3, 
+        group_split_column="manual_group"
+    )
+    
+    # The results should be different from the auto-detected version
+    # since we're using a different grouping
+    assert test_cv.results[0].observed.index.tolist() != test_cv2.results[0].observed.index.tolist()
+
+
 def test_check_valid_nfolds():
     inputs = Inputs(
         features=[

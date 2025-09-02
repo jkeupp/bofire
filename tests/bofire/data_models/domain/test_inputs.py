@@ -1193,3 +1193,76 @@ def test_inputs_get_feature_indices(
     assert mol_dims == expected_molecular_indices
     assert ord_dims == expected_continuous_indices
     assert cat_dims == expected_categorical_indices
+
+
+def test_inputs_get_timeseries_column():
+    """Test that get_timeseries_column correctly identifies time series features"""
+    
+    # Test with no time series feature
+    inputs = Inputs(
+        features=[
+            ContinuousInput(key="x1", bounds=(0, 1)),
+            CategoricalInput(key="x2", categories=["a", "b", "c"]),
+        ]
+    )
+    assert inputs.get_timeseries_column() is None
+    
+    # Test with one time series feature (categorical)
+    inputs = Inputs(
+        features=[
+            ContinuousInput(key="x1", bounds=(0, 1)),
+            CategoricalInput(
+                key="batch_id", 
+                categories=["A", "B", "C"],
+                is_timeseries=True
+            ),
+        ]
+    )
+    assert inputs.get_timeseries_column() == "batch_id"
+    
+    # Test with one time series feature (continuous)
+    inputs = Inputs(
+        features=[
+            ContinuousInput(
+                key="timestamp",
+                bounds=(0, 1000),
+                is_timeseries=True
+            ),
+            CategoricalInput(key="x2", categories=["a", "b", "c"]),
+        ]
+    )
+    assert inputs.get_timeseries_column() == "timestamp"
+    
+    # Test with multiple time series features (should raise error)
+    inputs = Inputs(
+        features=[
+            ContinuousInput(
+                key="timestamp",
+                bounds=(0, 1000),
+                is_timeseries=True
+            ),
+            CategoricalInput(
+                key="batch_id",
+                categories=["A", "B", "C"],
+                is_timeseries=True
+            ),
+        ]
+    )
+    with pytest.raises(
+        ValueError,
+        match="Multiple features marked as time series: \\['timestamp', 'batch_id'\\]. Only one is allowed."
+    ):
+        inputs.get_timeseries_column()
+    
+    # Test with discrete time series feature
+    inputs = Inputs(
+        features=[
+            DiscreteInput(
+                key="time_index",
+                values=[0, 1, 2, 3, 4],
+                is_timeseries=True
+            ),
+            ContinuousInput(key="x1", bounds=(0, 1)),
+        ]
+    )
+    assert inputs.get_timeseries_column() == "time_index"

@@ -2,6 +2,7 @@ from abc import abstractmethod
 from typing import ClassVar, List, Optional, Tuple, Union
 
 import pandas as pd
+from pydantic import Field
 
 from bofire.data_models.base import BaseModel
 from bofire.data_models.enum import CategoricalEncodingEnum
@@ -39,6 +40,13 @@ class Feature(BaseModel):
 
 class Input(Feature):
     """Base class for all input features."""
+    
+    is_timeseries: bool = Field(
+        default=False,
+        description="Flag to indicate if this feature represents a time series identifier. "
+        "When True, cross-validation will use GroupShuffleSplit to ensure data points "
+        "from the same time series stay together in either train or test set."
+    )
 
     @staticmethod
     @abstractmethod

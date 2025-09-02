@@ -283,6 +283,25 @@ class Inputs(_BaseFeatures[AnyInput]):
 
         """
         return Inputs(features=[feat for feat in self if not feat.is_fixed()])
+    
+    def get_timeseries_column(self) -> Optional[str]:
+        """Gets the key of the feature marked as time series identifier.
+        
+        Returns:
+            Optional[str]: The key of the time series feature if one exists, 
+                None otherwise. Raises ValueError if multiple time series 
+                features are found.
+        """
+        timeseries_features = [feat for feat in self if feat.is_timeseries]
+        if len(timeseries_features) == 0:
+            return None
+        elif len(timeseries_features) == 1:
+            return timeseries_features[0].key
+        else:
+            raise ValueError(
+                f"Multiple features marked as time series: "
+                f"{[f.key for f in timeseries_features]}. Only one is allowed."
+            )
 
     @validate_call
     def sample(

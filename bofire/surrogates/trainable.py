@@ -117,7 +117,8 @@ class TrainableSurrogate(ABC):
                 This parameter is used to ensure that the splits are made such that the same group is not present in both
                 training and testing sets. This is useful in scenarios where data points are related or dependent on each
                 other, and splitting them into different sets would violate the assumption of independence. The number of
-                unique groups must be greater than or equal to the number of folds. Defaults to None.
+                unique groups must be greater than or equal to the number of folds. If not provided and a feature is marked
+                as is_timeseries=True, that feature's key will be used automatically. Defaults to None.
             hooks (Dict[str, Callable[[Model, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame], Any]], optional):
                 Dictionary of callable hooks that are called within the CV loop. The callable retrieves the current trained
                 modeld and the current CV folds in the following order: X_train, y_train, X_test, y_test. Defaults to {}.
@@ -129,6 +130,9 @@ class TrainableSurrogate(ABC):
                 second CvResults object the test data, dictionary object holds the return values of the applied hooks.
 
         """
+        # Auto-detect time series column if not explicitly provided
+        if group_split_column is None and hasattr(self, 'inputs'):
+            group_split_column = self.inputs.get_timeseries_column()  # type: ignore
         if include_labcodes and "labcode" not in experiments.columns:
             raise ValueError("No labcodes available for the provided experiments.")
 
